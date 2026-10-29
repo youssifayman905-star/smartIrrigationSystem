@@ -1,0 +1,1029 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Smart Irrigation IoT Dashboard</title>
+  
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  
+  <!-- Lucide Icons -->
+  <script src="https://unpkg.com/lucide@latest"></script>
+  
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Google Font -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+            mono: ['"JetBrains Mono"', 'monospace'],
+          },
+          colors: {
+            brand: {
+              50: '#f0fdf4',
+              100: '#dcfce7',
+              500: '#22c55e',
+              600: '#16a34a',
+              700: '#15803d',
+            },
+            pump: {
+              active: '#06b6d4',
+              inactive: '#64748b'
+            }
+          },
+          animation: {
+            'pulse-fast': 'pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'ping-slow': 'ping 2s cubic-bezier(0, 0, 0.2, 1) infinite',
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Custom scrollbars */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(148, 163, 184, 0.3); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(148, 163, 184, 0.5); }
+
+    .glass-card {
+      background: rgba(255, 255, 255, 0.85);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(226, 232, 240, 0.8);
+    }
+    .dark .glass-card {
+      background: rgba(15, 23, 42, 0.75);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      border: 1px solid rgba(51, 65, 85, 0.5);
+    }
+
+    /* Glow pulse for active water pump */
+    .pump-glow {
+      box-shadow: 0 0 25px rgba(6, 182, 212, 0.45);
+    }
+
+    /* Mobile mockup shell */
+    .phone-mockup {
+      width: 395px;
+      height: 810px;
+      border: 12px solid #1e293b;
+      border-radius: 48px;
+      box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.35);
+    }
+  </style>
+</head>
+<body class="bg-slate-100 text-slate-800 dark:bg-slate-950 dark:text-slate-100 min-h-screen font-sans transition-colors duration-200">
+
+  <!-- ================= TOP NAVIGATION ================= -->
+  <header class="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+      
+      <!-- Logo & Title -->
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-600 to-teal-400 flex items-center justify-center text-white shadow-md shadow-emerald-500/20">
+          <i data-lucide="sprout" class="w-5 h-5"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="font-bold text-lg leading-tight tracking-tight">SmartAgro IoT</h1>
+            <span id="conn-pill" class="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">
+              <span class="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span> Connecting
+            </span>
+          </div>
+          <p class="text-xs text-slate-500 dark:text-slate-400 font-mono">RTDB: smart-irrigation-assignment</p>
+        </div>
+      </div>
+
+      <!-- Controls & View Mode -->
+      <div class="flex items-center gap-2 sm:gap-3">
+        <!-- Audio alert toggle -->
+        <button id="sound-btn" onclick="toggleAudio()" class="p-2 rounded-lg text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 transition" title="Mute/Unmute Audio Alerts">
+          <i id="sound-icon" data-lucide="volume-2" class="w-5 h-5"></i>
+        </button>
+
+        <!-- View mode switcher: Desktop vs Mobile mockup -->
+        <div class="hidden sm:flex items-center p-1 bg-slate-200/80 dark:bg-slate-800 rounded-xl text-xs font-medium">
+          <button id="view-desktop-btn" onclick="setViewMode('desktop')" class="px-3 py-1.5 rounded-lg bg-white dark:bg-slate-700 shadow-sm flex items-center gap-1.5 transition">
+            <i data-lucide="layout-dashboard" class="w-4 h-4"></i> Desktop
+          </button>
+          <button id="view-mobile-btn" onclick="setViewMode('mobile')" class="px-3 py-1.5 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 flex items-center gap-1.5 transition">
+            <i data-lucide="smartphone" class="w-4 h-4"></i> Phone View
+          </button>
+        </div>
+
+        <!-- Settings drawer toggle -->
+        <button onclick="toggleSettingsModal(true)" class="p-2 rounded-lg text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 transition" title="Firebase Settings">
+          <i data-lucide="settings" class="w-5 h-5"></i>
+        </button>
+
+        <!-- Dark/Light toggle -->
+        <button onclick="toggleTheme()" class="p-2 rounded-lg text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-white bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 transition">
+          <i id="theme-icon" data-lucide="moon" class="w-5 h-5"></i>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ================= URGENT ALERT BANNER ================= -->
+  <div id="urgent-alert-container" class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-4 hidden">
+    <div id="urgent-alert-banner" class="rounded-2xl p-4 bg-rose-500/10 dark:bg-rose-950/40 border border-rose-500/30 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-lg shadow-rose-500/5">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-rose-500 text-white flex items-center justify-center shrink-0 animate-pulse">
+          <i data-lucide="flame" class="w-6 h-6"></i>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <span class="inline-block px-2 py-0.5 text-xs font-bold uppercase tracking-wider rounded bg-rose-500 text-white" id="alert-badge-type">TEMP_HIGH</span>
+            <span class="text-xs text-rose-500 font-mono font-medium" id="alert-timestamp">Just now</span>
+          </div>
+          <p class="text-sm font-semibold text-rose-700 dark:text-rose-300 mt-0.5" id="alert-message">
+            Threshold exceeded! Reading: 30.8°C (Limit: 30°C)
+          </p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+        <button onclick="dismissActiveAlert()" class="px-3 py-1.5 text-xs font-medium bg-rose-100 dark:bg-rose-900/60 hover:bg-rose-200 text-rose-700 dark:text-rose-200 rounded-lg transition">
+          Acknowledge
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= MAIN CONTAINER ================= -->
+  <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+
+    <!-- WRAPPER: Can switch between desktop layout and interactive mobile viewport mockup -->
+    <div id="main-view-container" class="w-full flex justify-center">
+
+      <!-- APP CONTENT (Direct in Desktop, or Nested inside Phone Frame) -->
+      <div id="dashboard-content" class="w-full space-y-6">
+
+        <!-- STATUS OVERVIEW BANNER: PUMP & MODES -->
+        <div class="glass-card rounded-2xl p-5 shadow-sm">
+          <div class="flex flex-col md:flex-row items-center justify-between gap-4">
+            
+            <!-- Pump Status Block -->
+            <div class="flex items-center gap-4 w-full md:w-auto">
+              <div id="pump-indicator-icon" class="w-14 h-14 rounded-2xl bg-slate-200 dark:bg-slate-800 text-slate-400 flex items-center justify-center transition-all duration-300">
+                <i data-lucide="waves" class="w-7 h-7"></i>
+              </div>
+              <div>
+                <div class="text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                  Water Pump Relay (Pin 26)
+                  <span id="pump-ping" class="hidden relative flex h-2 w-2">
+                    <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-cyan-400 opacity-75"></span>
+                    <span class="relative inline-flex rounded-full h-2 w-2 bg-cyan-500"></span>
+                  </span>
+                </div>
+                <div class="flex items-baseline gap-2 mt-0.5">
+                  <span id="pump-status-text" class="text-2xl font-black tracking-tight text-slate-700 dark:text-slate-300">OFFLINE</span>
+                  <span id="pump-action-desc" class="text-xs text-slate-500 font-mono">Relay open (Inactive)</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Trigger Rule Summary pill -->
+            <div class="flex flex-wrap items-center gap-2 text-xs font-mono bg-slate-50 dark:bg-slate-800/60 p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-700/60 w-full md:w-auto justify-start">
+              <span class="text-slate-400">Triggers:</span>
+              <span class="px-2 py-0.5 rounded bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300">Temp ≥ 30°C</span>
+              <span class="px-2 py-0.5 rounded bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300">Light ≥ 40%</span>
+              <span class="px-2 py-0.5 rounded bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300">Off: Cool &lt; 29°C & Dim &lt; 35%</span>
+            </div>
+
+            <!-- Last sync stamp -->
+            <div class="text-right text-xs text-slate-400 w-full md:w-auto flex md:flex-col justify-between items-center md:items-end">
+              <span>Last ESP32 Packet:</span>
+              <span id="last-seen-timestamp" class="font-mono text-slate-600 dark:text-slate-300 font-medium">Waiting for data...</span>
+            </div>
+
+          </div>
+        </div>
+
+        <!-- ================= 4 REAL-TIME METRIC GAUGES ================= -->
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+
+          <!-- 1. SOIL MOISTURE -->
+          <div class="glass-card rounded-2xl p-5 shadow-sm relative overflow-hidden flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <div class="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  <i data-lucide="droplets" class="w-5 h-5"></i>
+                </div>
+                <span class="font-medium text-sm text-slate-600 dark:text-slate-300">Soil Moisture</span>
+              </div>
+              <span id="soil-status-tag" class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">Normal</span>
+            </div>
+
+            <div class="my-4 flex items-center justify-between">
+              <div>
+                <span id="val-soil" class="text-4xl font-extrabold tracking-tight font-mono">0</span>
+                <span class="text-xl font-medium text-slate-400">%</span>
+                <div class="text-xs text-slate-400 mt-0.5">Threshold: Dry &lt; 40%</div>
+              </div>
+
+              <!-- Radial Mini Progress -->
+              <div class="relative w-14 h-14">
+                <svg class="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                  <path class="text-slate-200 dark:text-slate-800" stroke-width="3.5" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                  <path id="soil-ring" class="text-emerald-500 transition-all duration-700 ease-out" stroke-width="3.5" stroke-dasharray="0, 100" stroke-linecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                </svg>
+              </div>
+            </div>
+
+            <!-- Mini progress bar -->
+            <div class="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+              <div id="soil-bar" class="bg-emerald-500 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+          </div>
+
+          <!-- 2. TEMPERATURE -->
+          <div class="glass-card rounded-2xl p-5 shadow-sm relative overflow-hidden flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <div id="temp-icon-bg" class="p-2 rounded-xl bg-orange-500/10 text-orange-600 dark:text-orange-400">
+                  <i data-lucide="thermometer" class="w-5 h-5"></i>
+                </div>
+                <span class="font-medium text-sm text-slate-600 dark:text-slate-300">Ambient Temp</span>
+              </div>
+              <span id="temp-status-tag" class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">Optimal</span>
+            </div>
+
+            <div class="my-4 flex items-center justify-between">
+              <div>
+                <span id="val-temp" class="text-4xl font-extrabold tracking-tight font-mono">0.0</span>
+                <span class="text-xl font-medium text-slate-400">°C</span>
+                <div class="text-xs text-slate-400 mt-0.5">High trigger ≥ 30.0°C</div>
+              </div>
+
+              <!-- Radial Mini Progress -->
+              <div class="relative w-14 h-14">
+                <svg class="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                  <path class="text-slate-200 dark:text-slate-800" stroke-width="3.5" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                  <path id="temp-ring" class="text-orange-500 transition-all duration-700 ease-out" stroke-width="3.5" stroke-dasharray="0, 100" stroke-linecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                </svg>
+              </div>
+            </div>
+
+            <div class="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+              <div id="temp-bar" class="bg-orange-500 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+          </div>
+
+          <!-- 3. LIGHT LEVEL (LDR) -->
+          <div class="glass-card rounded-2xl p-5 shadow-sm relative overflow-hidden flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <div id="light-icon-bg" class="p-2 rounded-xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                  <i data-lucide="sun" class="w-5 h-5"></i>
+                </div>
+                <span class="font-medium text-sm text-slate-600 dark:text-slate-300">Light Intensity</span>
+              </div>
+              <span id="light-status-tag" class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">Dim</span>
+            </div>
+
+            <div class="my-4 flex items-center justify-between">
+              <div>
+                <span id="val-light" class="text-4xl font-extrabold tracking-tight font-mono">0</span>
+                <span class="text-xl font-medium text-slate-400">%</span>
+                <div class="text-xs text-slate-400 mt-0.5">Bright trigger ≥ 40%</div>
+              </div>
+
+              <!-- Radial Mini Progress -->
+              <div class="relative w-14 h-14">
+                <svg class="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                  <path class="text-slate-200 dark:text-slate-800" stroke-width="3.5" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                  <path id="light-ring" class="text-amber-500 transition-all duration-700 ease-out" stroke-width="3.5" stroke-dasharray="0, 100" stroke-linecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                </svg>
+              </div>
+            </div>
+
+            <div class="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+              <div id="light-bar" class="bg-amber-500 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+          </div>
+
+          <!-- 4. HUMIDITY (DHT) -->
+          <div class="glass-card rounded-2xl p-5 shadow-sm relative overflow-hidden flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-2">
+                <div class="p-2 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400">
+                  <i data-lucide="cloud-rain" class="w-5 h-5"></i>
+                </div>
+                <span class="font-medium text-sm text-slate-600 dark:text-slate-300">Humidity</span>
+              </div>
+              <span id="hum-status-tag" class="text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300">Normal</span>
+            </div>
+
+            <div class="my-4 flex items-center justify-between">
+              <div>
+                <span id="val-hum" class="text-4xl font-extrabold tracking-tight font-mono">0.0</span>
+                <span class="text-xl font-medium text-slate-400">%</span>
+                <div class="text-xs text-slate-400 mt-0.5">DHT11 Relative Hum</div>
+              </div>
+
+              <!-- Radial Mini Progress -->
+              <div class="relative w-14 h-14">
+                <svg class="w-full h-full transform -rotate-90" viewBox="0 0 36 36">
+                  <path class="text-slate-200 dark:text-slate-800" stroke-width="3.5" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                  <path id="hum-ring" class="text-sky-500 transition-all duration-700 ease-out" stroke-width="3.5" stroke-dasharray="0, 100" stroke-linecap="round" stroke="currentColor" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                </svg>
+              </div>
+            </div>
+
+            <div class="w-full bg-slate-200 dark:bg-slate-800 h-1.5 rounded-full overflow-hidden">
+              <div id="hum-bar" class="bg-sky-500 h-full rounded-full transition-all duration-500" style="width: 0%"></div>
+            </div>
+          </div>
+
+        </div>
+
+        <!-- ================= CHARTS & ALERT HISTORY ================= -->
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+
+          <!-- Time-Series Chart (2 cols) -->
+          <div class="lg:col-span-2 glass-card rounded-2xl p-5 shadow-sm flex flex-col justify-between">
+            <div class="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-4">
+              <div>
+                <h3 class="font-bold text-base">Environmental Telemetry</h3>
+                <p class="text-xs text-slate-400">Live sliding stream of ESP32 readings</p>
+              </div>
+              <!-- Series toggle buttons -->
+              <div class="flex items-center gap-1.5 text-xs font-medium">
+                <span class="inline-flex items-center gap-1 px-2 py-1 rounded bg-orange-500/10 text-orange-600 dark:text-orange-400">
+                  <span class="w-2 h-2 rounded-full bg-orange-500"></span> Temp
+                </span>
+                <span class="inline-flex items-center gap-1 px-2 py-1 rounded bg-amber-500/10 text-amber-600 dark:text-amber-400">
+                  <span class="w-2 h-2 rounded-full bg-amber-500"></span> Light
+                </span>
+                <span class="inline-flex items-center gap-1 px-2 py-1 rounded bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
+                  <span class="w-2 h-2 rounded-full bg-emerald-500"></span> Soil
+                </span>
+              </div>
+            </div>
+
+            <!-- Canvas wrapper -->
+            <div class="relative w-full h-72">
+              <canvas id="telemetryChart"></canvas>
+            </div>
+          </div>
+
+          <!-- Alert History Logs (1 col) -->
+          <div class="glass-card rounded-2xl p-5 shadow-sm flex flex-col h-full">
+            <div class="flex items-center justify-between mb-4">
+              <div class="flex items-center gap-2">
+                <i data-lucide="bell" class="w-5 h-5 text-rose-500"></i>
+                <h3 class="font-bold text-base">Alerts Log</h3>
+              </div>
+              <span id="alert-counter" class="text-xs font-mono px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 font-bold">0</span>
+            </div>
+
+            <div id="alerts-list" class="flex-1 overflow-y-auto max-h-[300px] space-y-2.5 pr-1">
+              <!-- Dynamically populated alert items -->
+              <div class="text-center py-10 text-slate-400 text-xs">
+                <i data-lucide="shield-check" class="w-8 h-8 mx-auto mb-2 opacity-40"></i>
+                No threshold alerts recorded yet
+              </div>
+            </div>
+          </div>
+
+        </div>
+
+      </div> <!-- /#dashboard-content -->
+    </div> <!-- /#main-view-container -->
+  </main>
+
+  <!-- ================= SETTINGS / FIREBASE CONFIG MODAL ================= -->
+  <div id="settings-modal" class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm hidden">
+    <div class="glass-card bg-white dark:bg-slate-900 rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 dark:border-slate-800 space-y-5">
+      
+      <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+        <div class="flex items-center gap-2.5">
+          <div class="p-2 rounded-xl bg-emerald-500/10 text-emerald-600">
+            <i data-lucide="database" class="w-5 h-5"></i>
+          </div>
+          <div>
+            <h3 class="font-bold text-lg">Firebase Connection</h3>
+            <p class="text-xs text-slate-400">Manage real-time database endpoints</p>
+          </div>
+        </div>
+        <button onclick="toggleSettingsModal(false)" class="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600">
+          <i data-lucide="x" class="w-5 h-5"></i>
+        </button>
+      </div>
+
+      <div class="space-y-4 text-sm">
+        <div>
+          <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Firebase Database URL</label>
+          <input id="cfg-db-url" type="text" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono text-xs focus:ring-2 focus:ring-emerald-500 outline-none" value="https://smart-irrigation-assignment-default-rtdb.firebaseio.com">
+        </div>
+
+        <div>
+          <label class="block font-semibold mb-1 text-slate-700 dark:text-slate-300">Database Secret / Auth Key <span class="text-xs font-normal text-slate-400">(optional if rules public)</span></label>
+          <input id="cfg-db-auth" type="password" class="w-full px-3 py-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 font-mono text-xs focus:ring-2 focus:ring-emerald-500 outline-none" placeholder="Enter auth token or secret">
+        </div>
+
+        <div class="pt-2 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between">
+          <div>
+            <div class="font-semibold text-slate-700 dark:text-slate-300">Demo / Simulation Mode</div>
+            <div class="text-xs text-slate-400">Generate local live hardware pulses</div>
+          </div>
+          <label class="relative inline-flex items-center cursor-pointer">
+            <input id="demo-mode-toggle" type="checkbox" onchange="toggleDemoMode(this.checked)" class="sr-only peer">
+            <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-emerald-500"></div>
+          </label>
+        </div>
+
+        <div class="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900 rounded-xl text-xs text-amber-800 dark:text-amber-300 flex items-start gap-2">
+          <i data-lucide="info" class="w-4 h-4 shrink-0 mt-0.5"></i>
+          <span>The dashboard utilizes live REST EventStream SSE (Server-Sent Events) to stream updates instantly from <code class="font-mono">/SensorReadings.json</code> and <code class="font-mono">/Alerts.json</code> without third-party bloat.</span>
+        </div>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="toggleSettingsModal(false)" class="px-4 py-2 text-xs font-medium rounded-xl hover:bg-slate-100 dark:hover:bg-slate-800 transition">Cancel</button>
+        <button onclick="saveAndReconnect()" class="px-4 py-2 text-xs font-semibold rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition flex items-center gap-1.5 shadow-md shadow-emerald-600/20">
+          <i data-lucide="refresh-cw" class="w-4 h-4"></i> Apply & Reconnect
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- AUDIO SYNTH FOR TRIGGER BEEPS (Web Audio API) -->
+  <script>
+    let audioContext = null;
+    let audioEnabled = true;
+
+    function playBeep(freq = 880, duration = 0.25, type = 'sine') {
+      if (!audioEnabled) return;
+      try {
+        if (!audioContext) {
+          audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        }
+        if (audioContext.state === 'suspended') {
+          audioContext.resume();
+        }
+        const osc = audioContext.createOscillator();
+        const gain = audioContext.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, audioContext.currentTime);
+        gain.gain.setValueAtTime(0.15, audioContext.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + duration);
+        osc.connect(gain);
+        gain.connect(audioContext.destination);
+        osc.start();
+        osc.stop(audioContext.currentTime + duration);
+      } catch (e) {
+        console.warn('Audio not allowed yet:', e);
+      }
+    }
+
+    function toggleAudio() {
+      audioEnabled = !audioEnabled;
+      const icon = document.getElementById('sound-icon');
+      if (audioEnabled) {
+        icon.setAttribute('data-lucide', 'volume-2');
+        playBeep(600, 0.1);
+      } else {
+        icon.setAttribute('data-lucide', 'volume-x');
+      }
+      lucide.createIcons();
+    }
+  </script>
+
+  <!-- APPLICATION CORE LOGIC -->
+  <script>
+    // State Store
+    const state = {
+      firebaseUrl: "https://smart-irrigation-assignment-default-rtdb.firebaseio.com",
+      authSecret: "xaSkNghnL488bk8nvxhkykCu5MWrz0yTjuo5itZ6",
+      isDemo: false,
+      connected: false,
+      lastAlertId: null,
+      history: {
+        timestamps: [],
+        temp: [],
+        light: [],
+        soil: []
+      },
+      current: {
+        soil: 0,
+        light: 0,
+        temp: 0,
+        hum: 0,
+        pump: "OFF",
+        ts: null
+      },
+      alerts: []
+    };
+
+    let telemetryChart = null;
+    let sseSensorSource = null;
+    let sseAlertsSource = null;
+    let pollInterval = null;
+    let demoInterval = null;
+
+    // Initialize Chart
+    function initChart() {
+      const ctx = document.getElementById('telemetryChart').getContext('2d');
+      const isDark = document.documentElement.classList.contains('dark');
+      const gridColor = isDark ? 'rgba(255, 255, 255, 0.06)' : 'rgba(0, 0, 0, 0.05)';
+      const textColor = isDark ? '#94a3b8' : '#64748b';
+
+      telemetryChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: [],
+          datasets: [
+            {
+              label: 'Temp (°C)',
+              data: [],
+              borderColor: '#f97316',
+              backgroundColor: 'rgba(249, 115, 22, 0.1)',
+              tension: 0.35,
+              borderWidth: 2,
+              pointRadius: 2,
+              fill: false
+            },
+            {
+              label: 'Light (%)',
+              data: [],
+              borderColor: '#f59e0b',
+              backgroundColor: 'rgba(245, 158, 11, 0.1)',
+              tension: 0.35,
+              borderWidth: 2,
+              pointRadius: 2,
+              fill: false
+            },
+            {
+              label: 'Soil (%)',
+              data: [],
+              borderColor: '#10b981',
+              backgroundColor: 'rgba(16, 185, 129, 0.1)',
+              tension: 0.35,
+              borderWidth: 2,
+              pointRadius: 2,
+              fill: false
+            }
+          ]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              mode: 'index',
+              intersect: false,
+              backgroundColor: 'rgba(15, 23, 42, 0.9)',
+              titleColor: '#fff',
+              bodyColor: '#e2e8f0',
+              borderColor: 'rgba(255, 255, 255, 0.1)',
+              borderWidth: 1
+            }
+          },
+          scales: {
+            x: {
+              grid: { color: gridColor },
+              ticks: { color: textColor, font: { family: 'monospace', size: 10 } }
+            },
+            y: {
+              min: 0,
+              max: 100,
+              grid: { color: gridColor },
+              ticks: { color: textColor, font: { family: 'monospace', size: 10 } }
+            }
+          }
+        }
+      });
+    }
+
+    // Format timestamp nicely
+    function formatTime(unixSeconds) {
+      if (!unixSeconds || unixSeconds < 10000) return new Date().toLocaleTimeString();
+      return new Date(unixSeconds * 1000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    }
+
+    // Update Live Gauges in UI
+    function updateMetricsUI(data) {
+      state.current = { ...state.current, ...data };
+
+      // 1. Soil
+      const soil = Math.round(state.current.soil || 0);
+      document.getElementById('val-soil').textContent = soil;
+      document.getElementById('soil-bar').style.width = `${soil}%`;
+      document.getElementById('soil-ring').setAttribute('stroke-dasharray', `${soil}, 100`);
+      
+      const soilTag = document.getElementById('soil-status-tag');
+      if (soil < 40) {
+        soilTag.className = "text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300";
+        soilTag.textContent = "DRY (<40%)";
+      } else if (soil > 75) {
+        soilTag.className = "text-[11px] font-bold px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300";
+        soilTag.textContent = "WET (>75%)";
+      } else {
+        soilTag.className = "text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300";
+        soilTag.textContent = "OPTIMAL";
+      }
+
+      // 2. Temp
+      const temp = Number(state.current.temp || 0).toFixed(1);
+      document.getElementById('val-temp').textContent = temp;
+      const tempPct = Math.min(Math.max((temp / 50) * 100, 0), 100);
+      document.getElementById('temp-bar').style.width = `${tempPct}%`;
+      document.getElementById('temp-ring').setAttribute('stroke-dasharray', `${tempPct}, 100`);
+      
+      const tempTag = document.getElementById('temp-status-tag');
+      const tempIconBg = document.getElementById('temp-icon-bg');
+      if (temp >= 30.0) {
+        tempTag.className = "text-[11px] font-bold px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300 animate-pulse";
+        tempTag.textContent = "CRITICAL (≥30°)";
+        tempIconBg.className = "p-2 rounded-xl bg-rose-500/10 text-rose-600";
+      } else if (temp < 29.0) {
+        tempTag.className = "text-[11px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300";
+        tempTag.textContent = "COOL (<29°)";
+        tempIconBg.className = "p-2 rounded-xl bg-orange-500/10 text-orange-600";
+      } else {
+        tempTag.className = "text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300";
+        tempTag.textContent = "STANDBY";
+        tempIconBg.className = "p-2 rounded-xl bg-orange-500/10 text-orange-600";
+      }
+
+      // 3. Light
+      const light = Math.round(state.current.light || 0);
+      document.getElementById('val-light').textContent = light;
+      document.getElementById('light-bar').style.width = `${light}%`;
+      document.getElementById('light-ring').setAttribute('stroke-dasharray', `${light}, 100`);
+
+      const lightTag = document.getElementById('light-status-tag');
+      if (light >= 40) {
+        lightTag.className = "text-[11px] font-bold px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300 animate-pulse";
+        lightTag.textContent = "BRIGHT (≥40%)";
+      } else if (light < 35) {
+        lightTag.className = "text-[11px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300";
+        lightTag.textContent = "DIM (<35%)";
+      } else {
+        lightTag.className = "text-[11px] font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300";
+        lightTag.textContent = "MODERATE";
+      }
+
+      // 4. Humidity
+      const hum = Number(state.current.hum || 0).toFixed(1);
+      document.getElementById('val-hum').textContent = hum;
+      document.getElementById('hum-bar').style.width = `${Math.min(hum, 100)}%`;
+      document.getElementById('hum-ring').setAttribute('stroke-dasharray', `${Math.min(hum, 100)}, 100`);
+
+      // 5. Pump Relay Visuals
+      const isPumpOn = String(state.current.pump).toUpperCase() === "ON";
+      const pumpIcon = document.getElementById('pump-indicator-icon');
+      const pumpText = document.getElementById('pump-status-text');
+      const pumpDesc = document.getElementById('pump-action-desc');
+      const pumpPing = document.getElementById('pump-ping');
+
+      if (isPumpOn) {
+        pumpIcon.className = "w-14 h-14 rounded-2xl bg-cyan-500 text-white flex items-center justify-center transition-all duration-300 pump-glow";
+        pumpText.className = "text-2xl font-black tracking-tight text-cyan-500 animate-pulse";
+        pumpText.textContent = "ACTIVE (IRRIGATING)";
+        pumpDesc.textContent = "Relay pin 26 driven LOW (Pumping water)";
+        pumpPing.classList.remove('hidden');
+      } else {
+        pumpIcon.className = "w-14 h-14 rounded-2xl bg-slate-200 dark:bg-slate-800 text-slate-400 flex items-center justify-center transition-all duration-300";
+        pumpText.className = "text-2xl font-black tracking-tight text-slate-500 dark:text-slate-400";
+        pumpText.textContent = "STANDBY (OFF)";
+        pumpDesc.textContent = "Relay pin 26 driven HIGH (Closed valve)";
+        pumpPing.classList.add('hidden');
+      }
+
+      // Timestamp
+      document.getElementById('last-seen-timestamp').textContent = formatTime(state.current.ts);
+
+      // Append data point to Chart
+      if (telemetryChart) {
+        const timeLabel = formatTime(state.current.ts);
+        const maxPoints = 20;
+
+        if (telemetryChart.data.labels.length > maxPoints) {
+          telemetryChart.data.labels.shift();
+          telemetryChart.data.datasets[0].data.shift();
+          telemetryChart.data.datasets[1].data.shift();
+          telemetryChart.data.datasets[2].data.shift();
+        }
+
+        telemetryChart.data.labels.push(timeLabel);
+        telemetryChart.data.datasets[0].data.push(temp);
+        telemetryChart.data.datasets[1].data.push(light);
+        telemetryChart.data.datasets[2].data.push(soil);
+        telemetryChart.update('none'); // smooth render
+      }
+    }
+
+    // Trigger Alarm Notification Banner
+    function triggerAlertBanner(alertData) {
+      const container = document.getElementById('urgent-alert-container');
+      const badge = document.getElementById('alert-badge-type');
+      const msg = document.getElementById('alert-message');
+      const time = document.getElementById('alert-timestamp');
+
+      badge.textContent = alertData.type || "ALERT_TRIGGERED";
+      time.textContent = formatTime(alertData.ts);
+
+      if (alertData.type === "TEMP_HIGH") {
+        msg.innerHTML = `High Heat Detected! <strong>${alertData.value}°C</strong> (Threshold: ≥ ${alertData.threshold}°C). Irrigation Pump Triggered!`;
+        playBeep(920, 0.35, 'sawtooth');
+      } else if (alertData.type === "LIGHT_HIGH") {
+        msg.innerHTML = `High Light Intensity! <strong>${alertData.value}%</strong> (Threshold: ≥ ${alertData.threshold}%). Auto irrigation activated!`;
+        playBeep(740, 0.35, 'square');
+      } else {
+        msg.innerHTML = `Sensor threshold reached! Reading: <strong>${alertData.value}</strong>`;
+        playBeep(800, 0.25);
+      }
+
+      container.classList.remove('hidden');
+    }
+
+    function dismissActiveAlert() {
+      document.getElementById('urgent-alert-container').classList.add('hidden');
+    }
+
+    // Render Alerts in sidebar log
+    function renderAlertsLog() {
+      const list = document.getElementById('alerts-list');
+      const counter = document.getElementById('alert-counter');
+      counter.textContent = state.alerts.length;
+
+      if (state.alerts.length === 0) {
+        list.innerHTML = `
+          <div class="text-center py-10 text-slate-400 text-xs">
+            <i data-lucide="shield-check" class="w-8 h-8 mx-auto mb-2 opacity-40"></i>
+            No threshold alerts recorded yet
+          </div>
+        `;
+        lucide.createIcons();
+        return;
+      }
+
+      list.innerHTML = state.alerts.map(item => `
+        <div class="p-3 rounded-xl bg-white dark:bg-slate-800/80 border border-slate-200/80 dark:border-slate-700/60 shadow-sm flex items-start justify-between gap-2 text-xs">
+          <div>
+            <div class="flex items-center gap-1.5 font-bold">
+              <span class="w-2 h-2 rounded-full ${item.type === 'TEMP_HIGH' ? 'bg-orange-500' : 'bg-amber-500'}"></span>
+              <span class="font-mono text-[11px]">${item.type}</span>
+            </div>
+            <div class="text-slate-500 dark:text-slate-400 mt-1">
+              Recorded: <strong class="text-slate-700 dark:text-slate-200">${item.value}</strong> 
+              (Limit: ${item.threshold})
+            </div>
+          </div>
+          <span class="text-[10px] font-mono text-slate-400 shrink-0">${formatTime(item.ts)}</span>
+        </div>
+      `).join('');
+      lucide.createIcons();
+    }
+
+    // Connect to Firebase Realtime Database using REST EventSource + Polling
+    function connectFirebase() {
+      const pill = document.getElementById('conn-pill');
+      pill.className = "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300";
+      pill.innerHTML = `<span class="w-2 h-2 rounded-full bg-emerald-500"></span> Connected`;
+
+      const cleanUrl = state.firebaseUrl.replace(/\/+$/, '');
+      const authParam = state.authSecret ? `?auth=${encodeURIComponent(state.authSecret)}` : '';
+
+      // Clean old timers/sources
+      if (pollInterval) clearInterval(pollInterval);
+      if (sseSensorSource) sseSensorSource.close();
+      if (sseAlertsSource) sseAlertsSource.close();
+
+      // Function to fetch latest state
+      const fetchReadings = async () => {
+        try {
+          const res = await fetch(`${cleanUrl}/SensorReadings.json${authParam}`);
+          if (!res.ok) throw new Error(`HTTP ${res.status}`);
+          const data = await res.json();
+          if (data) {
+            // Find latest reading
+            const keys = Object.keys(data);
+            if (keys.length > 0) {
+              const lastKey = keys[keys.length - 1];
+              const latest = data[lastKey];
+              updateMetricsUI(latest);
+            }
+          }
+        } catch (err) {
+          console.warn('SensorReadings fetch warning:', err);
+        }
+      };
+
+      const fetchAlerts = async () => {
+        try {
+          const res = await fetch(`${cleanUrl}/Alerts.json${authParam}`);
+          if (!res.ok) return;
+          const data = await res.json();
+          if (data) {
+            const keys = Object.keys(data);
+            const alertsArray = keys.map(k => ({ id: k, ...data[k] })).reverse();
+            
+            // Check if there is a new latest alert
+            if (alertsArray.length > 0) {
+              const newest = alertsArray[0];
+              if (state.lastAlertId !== newest.id) {
+                state.lastAlertId = newest.id;
+                triggerAlertBanner(newest);
+              }
+            }
+            state.alerts = alertsArray.slice(0, 15);
+            renderAlertsLog();
+          }
+        } catch (err) {
+          console.warn('Alerts fetch warning:', err);
+        }
+      };
+
+      // Initial Fetch
+      fetchReadings();
+      fetchAlerts();
+
+      // Setup continuous sync poll (every 3 seconds for fresh sensor packets)
+      pollInterval = setInterval(() => {
+        fetchReadings();
+        fetchAlerts();
+      }, 3000);
+    }
+
+    // Demo Mode Generator (Generates active scenarios including >=30°C and >=40% light triggers)
+    function toggleDemoMode(enabled) {
+      state.isDemo = enabled;
+      const pill = document.getElementById('conn-pill');
+
+      if (enabled) {
+        if (pollInterval) clearInterval(pollInterval);
+        pill.className = "inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-xs font-semibold bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300";
+        pill.innerHTML = `<span class="w-2 h-2 rounded-full bg-purple-500 animate-ping"></span> Simulation Mode`;
+
+        let cycle = 0;
+        demoInterval = setInterval(() => {
+          cycle++;
+          // Alternate scenario triggers
+          const isHighTempScenario = (cycle % 4 === 0);
+          const isHighLightScenario = (cycle % 6 === 0);
+
+          const simTemp = isHighTempScenario ? (30.2 + Math.random() * 2) : (26 + Math.random() * 3.5);
+          const simLight = isHighLightScenario ? (42 + Math.random() * 15) : (15 + Math.random() * 20);
+          const simSoil = Math.max(10, Math.min(95, Math.round(45 + Math.sin(cycle * 0.3) * 35)));
+          const simHum = Math.round(40 + Math.random() * 15);
+
+          // Arduino logic simulation:
+          // hot = temp >= 30.0; bright = light >= 40
+          // cool = temp < 29.0; dim = light < 35
+          let simPump = state.current.pump;
+          if (simTemp >= 30.0 || simLight >= 40) {
+            simPump = "ON";
+          } else if (simTemp < 29.0 && simLight < 35) {
+            simPump = "OFF";
+          }
+
+          const mockReading = {
+            temp: parseFloat(simTemp.toFixed(1)),
+            light: Math.round(simLight),
+            soil: simSoil,
+            hum: simHum,
+            pump: simPump,
+            ts: Math.floor(Date.now() / 1000)
+          };
+
+          updateMetricsUI(mockReading);
+
+          // Alert trigger
+          if (mockReading.temp >= 30.0 && (!state.alerts[0] || state.alerts[0].type !== "TEMP_HIGH" || Date.now() - state.alerts[0].ts * 1000 > 15000)) {
+            const newAlert = {
+              id: 'demo_' + Date.now(),
+              type: 'TEMP_HIGH',
+              value: mockReading.temp,
+              threshold: 30.0,
+              ts: Math.floor(Date.now() / 1000)
+            };
+            state.alerts.unshift(newAlert);
+            renderAlertsLog();
+            triggerAlertBanner(newAlert);
+          } else if (mockReading.light >= 40 && (!state.alerts[0] || state.alerts[0].type !== "LIGHT_HIGH" || Date.now() - state.alerts[0].ts * 1000 > 15000)) {
+            const newAlert = {
+              id: 'demo_' + Date.now(),
+              type: 'LIGHT_HIGH',
+              value: mockReading.light,
+              threshold: 40,
+              ts: Math.floor(Date.now() / 1000)
+            };
+            state.alerts.unshift(newAlert);
+            renderAlertsLog();
+            triggerAlertBanner(newAlert);
+          }
+
+        }, 2500);
+
+      } else {
+        if (demoInterval) clearInterval(demoInterval);
+        connectFirebase();
+      }
+    }
+
+    // Modal UI toggles
+    function toggleSettingsModal(show) {
+      const modal = document.getElementById('settings-modal');
+      if (show) modal.classList.remove('hidden');
+      else modal.classList.add('hidden');
+    }
+
+    function saveAndReconnect() {
+      state.firebaseUrl = document.getElementById('cfg-db-url').value.trim();
+      state.authSecret = document.getElementById('cfg-db-auth').value.trim();
+      toggleSettingsModal(false);
+      connectFirebase();
+    }
+
+    // Desktop vs Mobile View Switcher
+    function setViewMode(mode) {
+      const container = document.getElementById('main-view-container');
+      const deskBtn = document.getElementById('view-desktop-btn');
+      const mobBtn = document.getElementById('view-mobile-btn');
+      const content = document.getElementById('dashboard-content');
+
+      if (mode === 'mobile') {
+        container.className = "w-full flex justify-center py-4";
+        // Create phone shell
+        content.classList.remove('w-full');
+        content.classList.add('phone-mockup', 'overflow-y-auto', 'p-4', 'bg-slate-100', 'dark:bg-slate-950');
+
+        mobBtn.className = "px-3 py-1.5 rounded-lg bg-white dark:bg-slate-700 shadow-sm flex items-center gap-1.5 transition";
+        deskBtn.className = "px-3 py-1.5 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 flex items-center gap-1.5 transition";
+      } else {
+        container.className = "w-full flex justify-center";
+        content.classList.add('w-full');
+        content.classList.remove('phone-mockup', 'overflow-y-auto', 'p-4', 'bg-slate-100', 'dark:bg-slate-950');
+
+        deskBtn.className = "px-3 py-1.5 rounded-lg bg-white dark:bg-slate-700 shadow-sm flex items-center gap-1.5 transition";
+        mobBtn.className = "px-3 py-1.5 rounded-lg text-slate-600 dark:text-slate-300 hover:text-slate-900 flex items-center gap-1.5 transition";
+      }
+    }
+
+    // Theme Switcher (Dark / Light)
+    function toggleTheme() {
+      const html = document.documentElement;
+      const themeIcon = document.getElementById('theme-icon');
+      if (html.classList.contains('dark')) {
+        html.classList.remove('dark');
+        themeIcon.setAttribute('data-lucide', 'moon');
+      } else {
+        html.classList.add('dark');
+        themeIcon.setAttribute('data-lucide', 'sun');
+      }
+      lucide.createIcons();
+      if (telemetryChart) {
+        telemetryChart.destroy();
+        initChart();
+      }
+    }
+
+    // Window Init
+    window.onload = function() {
+      lucide.createIcons();
+      initChart();
+
+      // Initial sample seed from prompt sample
+      updateMetricsUI({
+        hum: 40,
+        light: 0,
+        pump: "OFF",
+        soil: 42,
+        temp: 26.2,
+        ts: Math.floor(Date.now() / 1000)
+      });
+
+      // Add prompt's sample alert in log
+      state.alerts.push({
+        id: "-P56qp8hfXJSNWxBfWKg",
+        threshold: 30,
+        ts: 1793280658,
+        type: "TEMP_HIGH",
+        value: 30.8
+      });
+      renderAlertsLog();
+
+      // Connect immediately to Firebase
+      connectFirebase();
+    };
+  </script>
+</body>
+</html>
